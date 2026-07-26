@@ -45,7 +45,51 @@ gh api graphql -H "GraphQL-Features: issue_dependencies" \
 
 Both mutations require their `GraphQL-Features` header or they error.
 
+## Writing issue / PR bodies — ALWAYS file-based
+
+**Never pass an issue or PR body as an inline shell string** (`--body "..."`, `--title "..."` with body content,
+or a heredoc that the shell expands). Write the body to a temp `.md` file and pass `--body-file`:
+
+```bash
+cat > /tmp/body.md <<'EOF'
+## Summary
+... markdown with `code spans`, paths like C:\x, and \n escapes ...
+EOF
+gh pr create  --body-file /tmp/body.md ...
+gh issue create --body-file /tmp/body.md ...
+gh pr edit N  --body-file /tmp/body.md
+```
+
+**Why (this is not style — it is correctness):** inline strings get mangled by the shell. Backslashes in code
+spans (`` `\r` ``, `` `\t` ``, `` `fetchKernel` `` after a stray `` ` ``) are interpreted as C-style escapes and
+turn into literal control characters — CR, TAB, BEL (`\a` → `0x07`), form-feed (`\f`). The result is a PR body with
+invisible garbage (`\^GttestationCid`, `\<TAB>oReceiptPayload`) that fails human review and can't be trusted. A
+heredoc **must** be single-quoted (`<<'EOF'`) so the shell does not expand it. On Windows/PowerShell the quoting
+rules differ again — the file-based pattern is the one form that is correct on every shell and OS.
+
+- Use `--body-file` for `gh issue create`, `gh issue edit`, `gh pr create`, `gh pr edit`, `gh pr comment`,
+  `gh pr review --body-file`.
+- If `gh pr edit` errors on a repo with a classic Project attached (`Projects (classic) is being deprecated…`),
+  set the body via REST instead: `gh api -X PATCH repos/OWNER/REPO/pulls/N -F body=@/tmp/body.md`.
+
+## Cross-repo claims — verify against the target, cite the ref
+
+When a PR/issue body (or a review, or a code comment) asserts a fact about code that lives in **another repo**
+("the kernel already types this", "no change needed in `imajin-ai`", "endpoint X returns shape Y"):
+
+- **Verify against the target repo's `main` (or its live `/spec`), never your own local clone.** Clones drift — a
+  checkout that's a few days stale will confidently contradict merged work. (This is how PRs end up asserting a type
+  is non-optional when the source repo actually types it optional.)
+- **Cite the ref you checked** — `owner/repo@main path/to/file.ts:line`, or the `/spec` route. A claim with no
+  citation is an assumption, not evidence.
+- **"No change required in <other service>" must name how you confirmed it.** Reading your own consumer clone is not
+  confirmation of the provider's contract.
+- Prefer verifying an integration contract from the provider's `/spec` or `main` source over inferring it from how
+  your side happens to call it.
+
 ## Commit / PR hygiene
 
 - Feature branch → PR. `[skip ci]` only for iteration commits.
 - Squash-merge for clean history where it matters.
+- Issue/PR bodies are file-based (see above) — no inline `--body` strings.
+- Cross-repo claims cite the ref they were verified against (see above).
