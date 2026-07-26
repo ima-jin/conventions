@@ -23,6 +23,33 @@ as labels (avoids the drift that had `active`/`blocked`/`parked` + `priority:*` 
 - **When you complete an issue** (fix committed + pushed), **close it** — `gh issue close <n>` or `Closes #N` in the
   commit/PR. Don't leave done work open.
 
+## Before filing a build ticket — grep for the same seam FIRST (the double-file trap)
+
+**Before filing any new build issue, search closed/merged issues and PRs for the same seam.** Filing a ticket for
+work that already merged (or is in-flight) sends a coding agent to build a *second, parallel* implementation of the
+same thing — which then collides at merge, burns a build cycle, and forces a supersede-and-close cleanup. Concrete
+incident (2026-07-26): a Gemini-key-in-vault issue merged overnight; the next morning a *second* issue was filed for
+the **same seam** without linking them; the coding agent dutifully built both; the second PR conflicted with the
+already-merged one and had to be closed. Entirely avoidable.
+
+**The check (do this every time before `gh issue create` for build work):**
+```bash
+# titles/bodies of BOTH open and closed issues + merged PRs for the seam
+gh issue list --repo OWNER/REPO --state all --search "<keyword>" --json number,title,state
+gh pr list    --repo OWNER/REPO --state all --search "<keyword>" --json number,title,state,mergedAt
+# and grep the actual code — the thing may already exist, merged, unticketed
+git -C <repo> log --oneline -S "<function-or-symbol>" -- .
+grep -rn "<function-or-symbol>" <repo>/apps <repo>/packages
+```
+
+- **If a match exists:** link to it, extend it, or file the *delta* as a fresh issue that references the prior work —
+  **never re-file the whole seam.**
+- **If you're filing a generalization of something already shipped:** say so explicitly in the body and cross-ref the
+  shipped work, so the coding agent **replaces-on-purpose** (on its own clock) instead of racing a merge against the
+  version that beat it to `main`.
+- This is the filing-time sibling of the cross-repo-verify rule below: both exist because an agent's context is one
+  repo at one moment, and a confident build off a stale/partial picture ships duplicate or conflicting work.
+
 ## Issue relationships — use GitHub's NATIVE types, not body checklists
 
 For epics/children and blocking, use first-class relationship types (GraphQL-only; `gh` has no CLI subcommand yet):
