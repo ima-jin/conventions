@@ -71,11 +71,23 @@ rules differ again — the file-based pattern is the one form that is correct on
   `gh pr review --body-file`.
 - If `gh pr edit` errors on a repo with a classic Project attached (`Projects (classic) is being deprecated…`),
   set the body via REST instead: `gh api -X PATCH repos/OWNER/REPO/pulls/N -F body=@/tmp/body.md`.
+- **Enforced, not just documented:** CI should fail on mangled markdown — tracked `.md` files (and, where feasible,
+  PR-body content) containing control characters (BEL `0x07`, form-feed `0x0C`, lone CR, stray TAB inside prose)
+  are the fingerprint of inline-body escaping and must not merge. The template ships this check so every synced app
+  inherits it (see `imajin-app-template`).
 
 ## Cross-repo claims — verify against the target, cite the ref
 
-When a PR/issue body (or a review, or a code comment) asserts a fact about code that lives in **another repo**
-("the kernel already types this", "no change needed in `imajin-ai`", "endpoint X returns shape Y"):
+> **Why this rule has to live *here* (in every repo's §7), not just in one repo's local AGENTS.md:** a coding agent's
+> context is usually **the one repo it's working in**. An agent in `catalyst-power/xprize` does not automatically see
+> a rule that only exists in `ima-jin/imajin-ai`'s local AGENTS.md. Rules that must bind *every* agent have to travel
+> *with each repo* — which is exactly what §7 (synced from `ima-jin/conventions`) does. If a norm only lives in one
+> repo's context, agents in other repos will re-derive it from scratch and get it wrong. Distribute the norm to the
+> context, don't assume scope.
+
+When a PR/issue body (or a review, a code comment, **or a work-order spec you write for another agent**) asserts a
+fact about code that lives in **another repo** ("the kernel already types this", "no change needed in `imajin-ai`",
+"endpoint X returns shape Y", "the confirm flow already returns Z"):
 
 - **Verify against the target repo's `main` (or its live `/spec`), never your own local clone.** Clones drift — a
   checkout that's a few days stale will confidently contradict merged work. (This is how PRs end up asserting a type
@@ -86,6 +98,14 @@ When a PR/issue body (or a review, or a code comment) asserts a fact about code 
   confirmation of the provider's contract.
 - Prefer verifying an integration contract from the provider's `/spec` or `main` source over inferring it from how
   your side happens to call it.
+- **This applies to specs and reviews too, not just PR bodies.** If you author a work-order that inlines another
+  repo's contract for a downstream agent, that inlined contract is itself a cross-repo claim — verify it before you
+  hand it off, or the downstream agent inherits your imprecision.
+
+**Give agents the reach to comply, not just the rule.** The correct way to satisfy this is a *scoped, on-demand* read
+of the provider's `main`/`/spec` at claim time — **not** a standing wide checkout of every repo. A stale broad clone is
+how the confident-wrong-correction happens in the first place; a fresh targeted read of `main`/`/spec` is how you avoid
+it. Context (this rule, in this repo's §7) + a narrow verify-reach beats a broad standing sandbox.
 
 ## Commit / PR hygiene
 
